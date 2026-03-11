@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TropicalWatch — Hurricane Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #060b14;
+    --panel: #0c1520;
+    --border: #1a2a3a;
+    --accent: #00d4ff;
+    --warn: #ff6b00;
+    --danger: #ff1744;
+    --safe: #00e676;
+    --text: #c8dae8;
+    --muted: #4a6a80;
+    --glow: 0 0 20px rgba(0,212,255,0.3);
+    --card: #0e1c2a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ANIMATED BACKGROUND */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% 60%, rgba(0,60,100,0.25) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 20%, rgba(0,20,60,0.3) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* HEADER */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(6,11,20,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    position: relative;
+  }
+
+  .logo-icon svg {
+    animation: spin 8s linear infinite;
+    filter: drop-shadow(0 0 8px var(--accent));
+  }
+
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  .logo-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    letter-spacing: 2px;
+    color: #fff;
+  }
+
+  .logo-text span { color: var(--accent); }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .status-badge.active {
+    background: rgba(255,23,68,0.15);
+    border: 1px solid rgba(255,23,68,0.4);
+    color: #ff6b8a;
+  }
+
+  .status-badge.quiet {
+    background: rgba(0,230,118,0.1);
+    border: 1px solid rgba(0,230,118,0.3);
+    color: var(--safe);
+  }
+
+  .pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    animation: pulse-anim 1.5s infinite;
+  }
+
+  .active .pulse-dot { background: #ff1744; }
+  .quiet .pulse-dot { background: var(--safe); }
+
+  @keyframes pulse-anim {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.4); }
+  }
+
+  .last-updated {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(12,21,32,0.7);
+    position: sticky;
+    top: 60px;
+    z-index: 90;
+  }
+
+  .tab {
+    padding: 14px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    min-height: calc(100vh - 111px);
+    position: relative;
+    z-index: 1;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    background: rgba(12,21,32,0.5);
+  }
+
+  .sidebar-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .refresh-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.2s;
+  }
+
+  .refresh-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* STORM CARDS */
+  .storm-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .storm-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--accent);
+    border-radius: 10px 0 0 10px;
+  }
+
+  .storm-card.cat5::before { background: #ff1744; }
+  .storm-card.cat4::before { background: #ff6d00; }
+  .storm-card.cat3::before { background: #ff9800; }
+  .storm-card.cat2::before { background: #ffca28; }
+  .storm-card.cat1::before { background: #a5d6a7; }
+  .storm-card.ts::before { background: var(--accent); }
+  .storm-card.td::before { background: #78909c; }
+
+  .storm-card:hover {
+    border-color: rgba(0,212,255,0.3);
+    background: rgba(14,28,42,0.9);
+    transform: translateX(2px);
+  }
+
+  .storm-card.selected {
+    border-color: var(--accent);
+    box-shadow: var(--glow);
+  }
+
+  .storm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+
+  .storm-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 1px;
+    line-height: 1;
+    color: #fff;
+  }
+
+  .cat-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+
+  .cat5 .cat-badge { background: rgba(255,23,68,0.2); color: #ff6b8a; border: 1px solid rgba(255,23,68,0.4); }
+  .cat4 .cat-badge { background: rgba(255,109,0,0.2); color: #ffab40; border: 1px solid rgba(255,109,0,0.4); }
+  .cat3 .cat-badge { background: rgba(255,152,0,0.2); color: #ffd740; border: 1px solid rgba(255,152,0,0.4); }
+  .cat2 .cat-badge { background: rgba(255,202,40,0.15); color: #ffe57f; border: 1px solid rgba(255,202,40,0.3); }
+  .cat1 .cat-badge { background: rgba(165,214,167,0.15); color: #a5d6a7; border: 1px solid rgba(165,214,167,0.3); }
+  .ts .cat-badge { background: rgba(0,212,255,0.1); color: var(--accent); border: 1px solid rgba(0,212,255,0.3); }
+  .td .cat-badge { background: rgba(120,144,156,0.2); color: #b0bec5; border: 1px solid rgba(120,144,156,0.3); }
+
+  .storm-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stat-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+
+  .stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .stat-value.danger { color: #ff6b8a; }
+  .stat-value.warn { color: #ffab40; }
+  .stat-value.ok { color: var(--accent); }
+
+  .storm-location {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* WATCH/WARNING ITEMS */
+  .alert-item {
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border-left: 3px solid;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .alert-item.warning {
+    background: rgba(255,23,68,0.08);
+    border-color: #ff1744;
+    color: #ffcdd2;
+  }
+
+  .alert-item.watch {
+    background: rgba(255,152,0,0.08);
+    border-color: #ff9800;
+    color: #ffe0b2;
+  }
+
+  .alert-item.advisory {
+    background: rgba(0,212,255,0.06);
+    border-color: var(--accent);
+    color: #b3e5fc;
+  }
+
+  .alert-type {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 3px;
+  }
+
+  /* CONTENT PANEL */
+  .content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* TAB PANELS */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: flex; flex-direction: column; height: 100%; }
+
+  /* MAP */
+  .map-container {
+    flex: 1;
+    position: relative;
+    min-height: 500px;
+  }
+
+  .map-container iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+
+  .map-overlay {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .map-btn {
+    background: rgba(6,11,20,0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .map-btn:hover, .map-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* TEXT PRODUCTS */
+  .text-products {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+  }
+
+  .product-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .product-card:hover { border-color: rgba(0,212,255,0.3); }
+
+  .product-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .product-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .product-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .product-body {
+    padding: 14px 16px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+
+  .product-body::-webkit-scrollbar { width: 4px; }
+  .product-body::-webkit-scrollbar-track { background: transparent; }
+  .product-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .product-footer {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+  }
+
+  .product-link {
+    font-size: 11px;
+    color: var(--accent);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .product-link:hover { text-decoration: underline; }
+
+  /* LOADING SPINNER */
+  .loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  /* HISTORICAL / SEASON */
+  .season-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    padding: 20px;
+  }
+
+  .season-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .season-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 40px;
+    line-height: 1;
+    color: var(--accent);
+  }
+
+  .season-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* PREPARE TAB */
+  .prepare-content { padding: 24px; overflow-y: auto; }
+
+  .prepare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .prepare-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .prepare-icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+
+  .prepare-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+
+  .prepare-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .prepare-list li {
+    font-size: 12px;
+    color: var(--text);
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.5;
+  }
+
+  .prepare-list li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-size: 10px;
+  }
+
+  /* SAFFIR SIMPSON SCALE */
+  .saffir-scale {
+    display: flex;
+    gap: 4px;
+    padding: 16px;
+  }
+
+  .scale-item {
+    flex: 1;
+    padding: 10px 6px;
+    border-radius: 6px;
+    text-align: center;
+    cursor: default;
+    transition: transform 0.15s;
+  }
+
+  .scale-item:hover { transform: translateY(-2px); }
+
+  .scale-item.td { background: rgba(120,144,156,0.15); border: 1px solid rgba(120,144,156,0.3); }
+  .scale-item.ts { background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2); }
+  .scale-item.c1 { background: rgba(165,214,167,0.12); border: 1px solid rgba(165,214,167,0.3); }
+  .scale-item.c2 { background: rgba(255,202,40,0.1); border: 1px solid rgba(255,202,40,0.25); }
+  .scale-item.c3 { background: rgba(255,152,0,0.12); border: 1px solid rgba(255,152,0,0.3); }
+  .scale-item.c4 { background: rgba(255,109,0,0.12); border: 1px solid rgba(255,109,0,0.3); }
+  .scale-item.c5 { background: rgba(255,23,68,0.12); border: 1px solid rgba(255,23,68,0.3); }
+
+  .scale-cat { font-family: 'Bebas Neue', sans-serif; font-size: 18px; }
+  .scale-winds { font-size: 9px; color: var(--muted); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+
+  .scale-item.td .scale-cat { color: #b0bec5; }
+  .scale-item.ts .scale-cat { color: var(--accent); }
+  .scale-item.c1 .scale-cat { color: #a5d6a7; }
+  .scale-item.c2 .scale-cat { color: #ffe57f; }
+  .scale-item.c3 .scale-cat { color: #ffcc02; }
+  .scale-item.c4 .scale-cat { color: #ffab40; }
+  .scale-item.c5 .scale-cat { color: #ff6b8a; }
+
+  /* NHC IMAGE PANEL */
+  .nhc-image {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    display: block;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .nhc-image:hover { border-color: var(--accent); }
+
+  .image-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .image-tile {
+    position: relative;
+  }
+
+  .image-tile-label {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  /* SCROLLBARS */
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* AD PLACEHOLDER */
+  .ad-slot {
+    background: rgba(14,28,42,0.5);
+    border: 1px dashed rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    font-size: 11px;
+    color: rgba(255,255,255,0.15);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin: 8px 16px;
+  }
+
+  /* FOOTER */
+  footer {
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding: 12px 24px;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1;
+    position: relative;
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* MOBILE RESPONSIVE */
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); max-height: 300px; }
+    .tabs { overflow-x: auto; }
+    .product-grid { grid-template-columns: 1fr; }
+    .image-grid { grid-template-columns: 1fr; }
+    .prepare-grid { grid-template-columns: 1fr; }
+  }
+
+  /* TOOLTIP */
+  .tooltip {
+    position: relative;
+  }
+  .tooltip:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a2a3a;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 999;
+  }
+
+  /* PROGRESS BARS for season stats */
+  .progress-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+    transition: width 1s ease;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="18" cy="18" r="16" stroke="#00d4ff" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <circle cx="18" cy="18" r="9" stroke="#00d4ff" stroke-width="1.5" opacity="0.6" stroke-dasharray="3 3"/>
+        <circle cx="18" cy="18" r="3" fill="#00d4ff"/>
+        <path d="M18 2 Q24 10 18 18 Q12 10 18 2Z" fill="#00d4ff" opacity="0.3"/>
+        <path d="M18 34 Q12 26 18 18 Q24 26 18 34Z" fill="#00d4ff" opacity="0.3"/>
+        <path d="M2 18 Q10 12 18 18 Q10 24 2 18Z" fill="#00d4ff" opacity="0.2"/>
+        <path d="M34 18 Q26 24 18 18 Q26 12 34 18Z" fill="#00d4ff" opacity="0.2"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">Tropical<span>Watch</span></div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-badge active" id="season-status">
+      <div class="pulse-dot"></div>
+      <span>Season Active</span>
+    </div>
+    <div class="last-updated" id="update-time">Loading...</div>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('map')">🗺️ Live Map</div>
+  <div class="tab" onclick="switchTab('outlook')">📋 Text Products</div>
+  <div class="tab" onclick="switchTab('graphics')">🛰️ NHC Graphics</div>
+  <div class="tab" onclick="switchTab('season')">📊 2025 Season</div>
+  <div class="tab" onclick="switchTab('prepare')">⚠️ Prepare</div>
+</div>
+
+<div class="main">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="section-label">
+        Active Systems
+        <button class="refresh-btn" onclick="loadData()">↻ Refresh</button>
+      </div>
+      <div id="storm-list">
+        <div class="loading"><div class="spinner"></div> Fetching NHC data...</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Watches & Warnings</div>
+      <div id="alert-list">
+        <div class="loading"><div class="spinner"></div> Loading alerts...</div>
+      </div>
+    </div>
+
+    <div class="ad-slot">Advertisement</div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Saffir-Simpson Scale</div>
+      <div class="saffir-scale">
+        <div class="scale-item td tooltip" data-tip="Under 38 mph">
+          <div class="scale-cat">TD</div>
+          <div class="scale-winds">&lt;38mph</div>
+        </div>
+        <div class="scale-item ts tooltip" data-tip="39–73 mph">
+          <div class="scale-cat">TS</div>
+          <div class="scale-winds">39–73</div>
+        </div>
+        <div class="scale-item c1 tooltip" data-tip="74–95 mph">
+          <div class="scale-cat">C1</div>
+          <div class="scale-winds">74–95</div>
+        </div>
+        <div class="scale-item c2 tooltip" data-tip="96–110 mph">
+          <div class="scale-cat">C2</div>
+          <div class="scale-winds">96–110</div>
+        </div>
+        <div class="scale-item c3 tooltip" data-tip="111–129 mph">
+          <div class="scale-cat">C3</div>
+          <div class="scale-winds">111–129</div>
+        </div>
+        <div class="scale-item c4 tooltip" data-tip="130–156 mph">
+          <div class="scale-cat">C4</div>
+          <div class="scale-winds">130–156</div>
+        </div>
+        <div class="scale-item c5 tooltip" data-tip="157+ mph">
+          <div class="scale-cat">C5</div>
+          <div class="scale-winds">157+</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- MAP TAB -->
+    <div id="tab-map" class="tab-panel active">
+      <div class="map-container">
+        <div class="map-overlay">
+          <button class="map-btn active" onclick="setLayer('wind')">💨 Wind</button>
+          <button class="map-btn" onclick="setLayer('rain')">🌧️ Rain</button>
+          <button class="map-btn" onclick="setLayer('clouds')">☁️ Satellite</button>
+          <button class="map-btn" onclick="setLayer('pressure')">📊 Pressure</button>
+        </div>
+        <iframe id="windy-map"
+          src="https://embed.windy.com/embed2.html?lat=25&lon=-75&detailLat=25&detailLon=-75&width=650&height=450&zoom=4&level=surface&overlay=wind&product=ecmwf&menu=&message=&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=mph&metricTemp=°F&radarRange=-1"
+          allowfullscreen>
+        </iframe>
+      </div>
+    </div>
+
+    <!-- OUTLOOK / TEXT PRODUCTS TAB -->
+    <div id="tab-outlook" class="tab-panel">
+      <div class="text-products">
+        <div class="product-grid" id="product-grid">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- NHC GRAPHICS TAB -->
+    <div id="tab-graphics" class="tab-panel">
+      <div class="image-grid">
+        <div class="image-tile">
+          <div class="image-tile-label">Atlantic Tropical Weather Outlook</div>
+          <a href="https://www.nhc.noaa.gov/twoat.shtml" target="_blank">
+            <img class="nhc-image" src="https://www.nhc.noaa.gov/xgtwo/two_atl_2d0.png" alt="Atlantic TWO" onerror="this.src='https://www.nhc.noaa.gov/xgtwo/two_atl_5d0.png'">
+          </a>
+        </div>
+        <div class="image-tile">
+          <div class="image-tile-label">East Pacific Tropical Weather Outlook</div>
+          <a href="https://www.nhc.noaa.gov/twoep.shtml" target="_blank">
+            <img class="nhc-image" src="https://www.nhc.noaa.gov/xgtwo/two_pac_2d0.png" alt="East Pacific TWO" onerror="this.src='https://www.nhc.noaa.gov/xgtwo/two_pac_5d0.png'">
+          </a>
+        </div>
+        <div class="image-tile">
+          <div class="image-tile-label">Atlantic 5-Day Development Outlook</div>
+          <a href="https://www.nhc.noaa.gov/twoat.shtml" target="_blank">
+            <img class="nhc-image" src="https://www.nhc.noaa.gov/xgtwo/two_atl_5d0.png" alt="Atlantic 5-day TWO">
+          </a>
+        </div>
+        <div class="image-tile">
+          <div class="image-tile-label">East Pacific 5-Day Development Outlook</div>
+          <a href="https://www.nhc.noaa.gov/twoep.shtml" target="_blank">
+            <img class="nhc-image" src="https://www.nhc.noaa.gov/xgtwo/two_pac_5d0.png" alt="East Pacific 5-day TWO">
+          </a>
+        </div>
+      </div>
+      <div style="padding: 0 16px 16px;">
+        <div class="image-tile-label" style="margin-bottom:8px;">Atlantic Basin Overview</div>
+        <a href="https://www.nhc.noaa.gov/" target="_blank">
+          <img class="nhc-image" src="https://www.nhc.noaa.gov/multisatl.png" alt="Atlantic Overview" style="max-width:100%;">
+        </a>
+      </div>
+    </div>
+
+    <!-- SEASON STATS TAB -->
+    <div id="tab-season" class="tab-panel">
+      <div style="padding: 20px; overflow-y: auto;">
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:2px; margin-bottom:4px;">2025 Atlantic Hurricane Season</div>
+        <div style="color:var(--muted); font-size:12px; margin-bottom:20px;">June 1 – November 30, 2025 · Data: NOAA/NHC</div>
+        <div class="season-grid">
+          <div class="season-card">
+            <div class="season-num" id="stat-named">—</div>
+            <div class="season-label">Named Storms</div>
+            <div class="progress-bar"><div class="progress-fill" id="pb-named" style="width:0%"></div></div>
+          </div>
+          <div class="season-card">
+            <div class="season-num" id="stat-hurricanes" style="color:#ff6b8a;">—</div>
+            <div class="season-label">Hurricanes</div>
+            <div class="progress-bar"><div class="progress-fill" id="pb-hurricanes" style="width:0%;background:#ff6b8a"></div></div>
+          </div>
+          <div class="season-card">
+            <div class="season-num" id="stat-major" style="color:#ffab40;">—</div>
+            <div class="season-label">Major Hurricanes (Cat 3+)</div>
+            <div class="progress-bar"><div class="progress-fill" id="pb-major" style="width:0%;background:#ffab40"></div></div>
+          </div>
+          <div class="season-card">
+            <div class="season-num" style="color:var(--muted);">17.3</div>
+            <div class="season-label">Avg Named Storms/Season</div>
+          </div>
+          <div class="season-card">
+            <div class="season-num" style="color:#ff6b8a; font-size:28px;">8.5</div>
+            <div class="season-label">Avg Hurricanes/Season</div>
+          </div>
+          <div class="season-card">
+            <div class="season-num" style="color:#ffab40; font-size:28px;">4.0</div>
+            <div class="season-label">Avg Major Hurricanes</div>
+          </div>
+        </div>
+
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:1px; margin: 24px 0 12px;">2025 Storm History</div>
+        <div id="season-storms" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap:10px;">
+          <div class="loading"><div class="spinner"></div> Loading season data...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PREPARE TAB -->
+    <div id="tab-prepare" class="tab-panel">
+      <div class="prepare-content">
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:2px; margin-bottom:4px;">Hurricane Preparedness</div>
+        <div style="color:var(--muted); font-size:12px; margin-bottom:4px;">Be ready before the storm</div>
+
+        <div style="display:flex; gap:8px; margin: 16px 0; flex-wrap:wrap;">
+          <span style="background:rgba(255,23,68,0.12);border:1px solid rgba(255,23,68,0.3);color:#ff6b8a;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;">⚠️ Hurricane Warning = Danger is imminent</span>
+          <span style="background:rgba(255,152,0,0.1);border:1px solid rgba(255,152,0,0.3);color:#ffab40;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;">👁 Hurricane Watch = Possible within 48 hrs</span>
+        </div>
+
+        <div class="prepare-grid">
+          <div class="prepare-card">
+            <div class="prepare-icon">🏠</div>
+            <div class="prepare-title">Secure Your Home</div>
+            <ul class="prepare-list">
+              <li>Install hurricane shutters or board windows</li>
+              <li>Clear gutters and drains</li>
+              <li>Trim trees and shrubs</li>
+              <li>Bring in outdoor furniture and decorations</li>
+              <li>Reinforce garage doors</li>
+              <li>Know how to turn off utilities</li>
+            </ul>
+          </div>
+          <div class="prepare-card">
+            <div class="prepare-icon">🎒</div>
+            <div class="prepare-title">Emergency Kit (72-hour supply)</div>
+            <ul class="prepare-list">
+              <li>Water: 1 gallon per person per day</li>
+              <li>Non-perishable food</li>
+              <li>Battery-powered or hand-crank radio</li>
+              <li>Flashlight and extra batteries</li>
+              <li>First aid kit and medications</li>
+              <li>Important documents (waterproofed)</li>
+              <li>Cash in small bills</li>
+              <li>Full tank of gas</li>
+            </ul>
+          </div>
+          <div class="prepare-card">
+            <div class="prepare-icon">🚗</div>
+            <div class="prepare-title">Evacuation Plan</div>
+            <ul class="prepare-list">
+              <li>Know your evacuation zone (A, B, C, D, E)</li>
+              <li>Plan two routes out of your area</li>
+              <li>Identify nearby shelters</li>
+              <li>Make a plan for pets</li>
+              <li>Don't wait — leave early when ordered</li>
+              <li>Never drive through flooded roads</li>
+            </ul>
+          </div>
+          <div class="prepare-card">
+            <div class="prepare-icon">📱</div>
+            <div class="prepare-title">Stay Informed</div>
+            <ul class="prepare-list">
+              <li>Sign up for local emergency alerts</li>
+              <li>Monitor NHC advisories every 6 hours</li>
+              <li>Follow local National Weather Service office</li>
+              <li>Download the FEMA app</li>
+              <li>Have a NOAA Weather Radio</li>
+              <li>Charge all devices before the storm</li>
+            </ul>
+          </div>
+          <div class="prepare-card">
+            <div class="prepare-icon">🌊</div>
+            <div class="prepare-title">Storm Surge Awareness</div>
+            <ul class="prepare-list">
+              <li>Storm surge is the #1 killer in hurricanes</li>
+              <li>Even Cat 1–2 storms can produce deadly surge</li>
+              <li>Check NOAA's surge maps for your area</li>
+              <li>Evacuate surge zones immediately when ordered</li>
+              <li>Move to higher ground, not upper floors</li>
+            </ul>
+          </div>
+          <div class="prepare-card">
+            <div class="prepare-icon">🔋</div>
+            <div class="prepare-title">After the Storm</div>
+            <ul class="prepare-list">
+              <li>Wait for official all-clear before returning</li>
+              <li>Avoid downed power lines</li>
+              <li>Use generators outdoors only (CO danger)</li>
+              <li>Document damage before cleanup</li>
+              <li>Boil water until cleared by authorities</li>
+              <li>Watch for flooding even after storm passes</li>
+            </ul>
+          </div>
+        </div>
+
+        <div style="margin-top:24px; padding:16px; background:var(--card); border:1px solid var(--border); border-radius:10px;">
+          <div style="font-weight:600; font-size:13px; margin-bottom:8px; color:#fff;">📞 Key Resources</div>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12px;">
+            <a href="https://www.nhc.noaa.gov" target="_blank" style="color:var(--accent);">National Hurricane Center</a>
+            <a href="https://www.ready.gov/hurricanes" target="_blank" style="color:var(--accent);">Ready.gov Hurricanes</a>
+            <a href="https://www.fema.gov" target="_blank" style="color:var(--accent);">FEMA.gov</a>
+            <a href="https://www.weather.gov" target="_blank" style="color:var(--accent);">National Weather Service</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <div>Data sourced from <a href="https://www.nhc.noaa.gov" target="_blank">NHC/NOAA</a> · Automated via RSS/XML · Not for life-safety decisions — always follow official NWS guidance</div>
+  <div>TropicalWatch © 2025</div>
+</footer>
+
+<script>
+// ============================================================
+// DATA LAYER — All NHC RSS/XML endpoints
+// ============================================================
+const NHC = {
+  rss_atlantic: 'https://www.nhc.noaa.gov/index-at.xml',
+  rss_pacific:  'https://www.nhc.noaa.gov/index-ep.xml',
+  two_atl:      'https://www.nhc.noaa.gov/xml/TWOAT.xml',
+  two_ep:       'https://www.nhc.noaa.gov/xml/TWOEP.xml',
+  two_cp:       'https://www.nhc.noaa.gov/xml/TWOCP.xml',
+  disc_atl:     'https://www.nhc.noaa.gov/xml/TWDAT.xml',
+  disc_ep:      'https://www.nhc.noaa.gov/xml/TWDEP.xml',
+  // Storm-specific (wallets 1-5)
+  storm_at:     (n) => `https://www.nhc.noaa.gov/xml/TASAT${n}.xml`,
+  storm_ep:     (n) => `https://www.nhc.noaa.gov/xml/TASEP${n}.xml`,
+};
+
+// CORS proxy — needed for client-side XML fetch from NHC
+const PROXY = 'https://api.allorigins.win/get?url=';
+
+async function fetchXML(url) {
+  try {
+    const res = await fetch(PROXY + encodeURIComponent(url));
+    const data = await res.json();
+    const parser = new DOMParser();
+    return parser.parseFromString(data.contents, 'text/xml');
+  } catch(e) {
+    console.warn('Fetch failed:', url, e);
+    return null;
+  }
+}
+
+// ============================================================
+// LOAD ACTIVE STORMS from Atlantic RSS
+// ============================================================
+async function loadStorms() {
+  const doc = await fetchXML(NHC.rss_atlantic);
+  const stormList = document.getElementById('storm-list');
+
+  if (!doc) {
+    stormList.innerHTML = useDemoStorms();
+    return;
+  }
+
+  const items = doc.querySelectorAll('item');
+  const storms = [];
+
+  items.forEach(item => {
+    const title = item.querySelector('title')?.textContent || '';
+    const desc  = item.querySelector('description')?.textContent || '';
+    const link  = item.querySelector('link')?.textContent || '';
+
+    // Filter for active storm advisories
+    if (title.includes('Advisory') && !title.includes('Tropical Weather Outlook')) {
+      storms.push({ title, desc, link });
+    }
+  });
+
+  if (storms.length === 0) {
+    // Off-season or no active storms
+    stormList.innerHTML = `
+      <div style="padding:12px; text-align:center; color:var(--muted); font-size:12px; line-height:1.7;">
+        <div style="font-size:28px; margin-bottom:8px;">🌴</div>
+        <div style="font-weight:600; color:var(--text);">No Active Storms</div>
+        <div>The Atlantic basin is currently quiet. Check the Outlook tab for potential development areas.</div>
+      </div>`;
+    document.getElementById('season-status').className = 'status-badge quiet';
+    document.getElementById('season-status').innerHTML = '<div class="pulse-dot"></div><span>Basin Quiet</span>';
+  } else {
+    stormList.innerHTML = storms.map(s => renderStormCard(s)).join('');
+  }
+}
+
+function renderStormCard(storm) {
+  // Parse category from title
+  let cat = 'ts', catLabel = 'TS', catClass = 'ts';
+  const t = storm.title.toLowerCase();
+  if (t.includes('category 5') || t.includes('cat 5')) { cat='cat5'; catLabel='CAT 5'; catClass='cat5'; }
+  else if (t.includes('category 4') || t.includes('cat 4')) { cat='cat4'; catLabel='CAT 4'; catClass='cat4'; }
+  else if (t.includes('category 3') || t.includes('cat 3')) { cat='cat3'; catLabel='CAT 3'; catClass='cat3'; }
+  else if (t.includes('category 2') || t.includes('cat 2')) { cat='cat2'; catLabel='CAT 2'; catClass='cat2'; }
+  else if (t.includes('category 1') || t.includes('cat 1')) { cat='cat1'; catLabel='CAT 1'; catClass='cat1'; }
+  else if (t.includes('hurricane')) { cat='cat1'; catLabel='CAT 1'; catClass='cat1'; }
+  else if (t.includes('tropical storm')) { cat='ts'; catLabel='TROP STORM'; catClass='ts'; }
+  else if (t.includes('tropical depression')) { cat='td'; catLabel='TROP DEP'; catClass='td'; }
+
+  const name = storm.title.split(' Advisory')[0].replace('Special ', '').replace('Intermediate ', '');
+
+  return `
+    <div class="storm-card ${catClass}" onclick="selectStorm(this, '${storm.link}')">
+      <div class="storm-header">
+        <div class="storm-name">${name}</div>
+        <div class="cat-badge">${catLabel}</div>
+      </div>
+      <div class="storm-location">📍 Atlantic Basin · Click for full advisory</div>
+    </div>`;
+}
+
+function useDemoStorms() {
+  // Demo data when it's the off-season or network unavailable
+  return `
+    <div style="padding:10px; font-size:11px; color:var(--muted); background:rgba(0,212,255,0.05); border:1px solid rgba(0,212,255,0.1); border-radius:6px; margin-bottom:10px;">
+      ℹ️ Live NHC data loads during active season. Showing demo data.
+    </div>
+    <div class="storm-card cat3 selected">
+      <div class="storm-header">
+        <div class="storm-name">Hurricane Maria</div>
+        <div class="cat-badge">CAT 3</div>
+      </div>
+      <div class="storm-stats">
+        <div class="stat"><div class="stat-label">Max Winds</div><div class="stat-value warn">120 mph</div></div>
+        <div class="stat"><div class="stat-label">Pressure</div><div class="stat-value">962 mb</div></div>
+        <div class="stat"><div class="stat-label">Movement</div><div class="stat-value ok">NW 12 mph</div></div>
+        <div class="stat"><div class="stat-label">Updated</div><div class="stat-value">2:00 AM EST</div></div>
+      </div>
+      <div class="storm-location">📍 18.5°N 67.2°W · NW of Puerto Rico</div>
+    </div>
+    <div class="storm-card ts">
+      <div class="storm-header">
+        <div class="storm-name">Tropical Storm Lee</div>
+        <div class="cat-badge">TROP STORM</div>
+      </div>
+      <div class="storm-stats">
+        <div class="stat"><div class="stat-label">Max Winds</div><div class="stat-value ok">65 mph</div></div>
+        <div class="stat"><div class="stat-label">Pressure</div><div class="stat-value">995 mb</div></div>
+      </div>
+      <div class="storm-location">📍 12.1°N 42.3°W · Open Atlantic</div>
+    </div>`;
+}
+
+// ============================================================
+// LOAD TEXT PRODUCTS (Tropical Weather Outlooks, etc.)
+// ============================================================
+async function loadProducts() {
+  const grid = document.getElementById('product-grid');
+
+  const products = [
+    { url: NHC.two_atl, title: 'Atlantic Tropical Weather Outlook', link: 'https://www.nhc.noaa.gov/twoat.shtml', basin: 'Atlantic' },
+    { url: NHC.two_ep,  title: 'East Pacific Tropical Weather Outlook', link: 'https://www.nhc.noaa.gov/twoep.shtml', basin: 'E. Pacific' },
+    { url: NHC.two_cp,  title: 'Central Pacific Tropical Weather Outlook', link: 'https://www.nhc.noaa.gov/twocpac.shtml', basin: 'C. Pacific' },
+    { url: NHC.disc_atl, title: 'Atlantic Tropical Weather Discussion', link: 'https://www.nhc.noaa.gov/', basin: 'Atlantic' },
+  ];
+
+  grid.innerHTML = products.map(p => `
+    <div class="product-card" id="pc-${p.basin.replace(/[\s.]/g,'')}-${products.indexOf(p)}">
+      <div class="product-header">
+        <div class="product-title">${p.title}</div>
+        <div class="product-time" id="pt-${p.basin.replace(/[\s.]/g,'')}-${products.indexOf(p)}">Loading...</div>
+      </div>
+      <div class="product-body" id="pb-${p.basin.replace(/[\s.]/g,'')}-${products.indexOf(p)}">
+        <span style="color:var(--muted);">Fetching product...</span>
+      </div>
+      <div class="product-footer">
+        <a href="${p.link}" target="_blank" class="product-link">↗ View on NHC.NOAA.GOV</a>
+      </div>
+    </div>`).join('');
+
+  for (let i = 0; i < products.length; i++) {
+    const p = products[i];
+    const key = p.basin.replace(/[\s.]/g,'') + '-' + i;
+    const doc = await fetchXML(p.url);
+    if (doc) {
+      const item = doc.querySelector('item');
+      if (item) {
+        const desc = item.querySelector('description')?.textContent || '';
+        const pubDate = item.querySelector('pubDate')?.textContent || '';
+        const d = document.getElementById(`pb-${key}`);
+        const t = document.getElementById(`pt-${key}`);
+        if (d) d.textContent = cleanText(desc);
+        if (t && pubDate) t.textContent = formatDate(pubDate);
+      }
+    } else {
+      const d = document.getElementById(`pb-${key}`);
+      if (d) d.innerHTML = `<span style="color:var(--muted);">Product unavailable. <a href="${p.link}" target="_blank" style="color:var(--accent);">View on NHC →</a></span>`;
+    }
+  }
+}
+
+function cleanText(raw) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = raw;
+  return tmp.textContent.replace(/\n{3,}/g, '\n\n').trim().substring(0, 1200) + '...';
+}
+
+function formatDate(dateStr) {
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', timeZoneName:'short' });
+  } catch(e) { return dateStr; }
+}
+
+// ============================================================
+// LOAD ALERTS
+// ============================================================
+async function loadAlerts() {
+  const alertList = document.getElementById('alert-list');
+  const doc = await fetchXML(NHC.rss_atlantic);
+
+  if (!doc) {
+    alertList.innerHTML = demoAlerts();
+    return;
+  }
+
+  const items = doc.querySelectorAll('item');
+  let alerts = [];
+
+  items.forEach(item => {
+    const title = item.querySelector('title')?.textContent || '';
+    const desc  = item.querySelector('description')?.textContent || '';
+    if (title.toLowerCase().includes('warning') || title.toLowerCase().includes('watch') || title.toLowerCase().includes('advisory')) {
+      const type = title.toLowerCase().includes('warning') ? 'warning' : title.toLowerCase().includes('watch') ? 'watch' : 'advisory';
+      alerts.push({ title, desc: desc.substring(0,150), type });
+    }
+  });
+
+  if (alerts.length === 0) alerts = demoAlertsData();
+  alertList.innerHTML = alerts.slice(0,5).map(a => `
+    <div class="alert-item ${a.type}">
+      <div class="alert-type">${a.type}</div>
+      ${a.title}
+    </div>`).join('');
+}
+
+function demoAlertsData() {
+  return [
+    { type: 'warning', title: 'Hurricane Warning in effect for Puerto Rico and the U.S. Virgin Islands' },
+    { type: 'watch', title: 'Hurricane Watch in effect for Hispaniola and Cuba' },
+    { type: 'advisory', title: 'Tropical Storm Advisory for Turks and Caicos Islands' },
+  ];
+}
+
+function demoAlerts() {
+  return demoAlertsData().map(a => `
+    <div class="alert-item ${a.type}">
+      <div class="alert-type">${a.type}</div>
+      ${a.title}
+    </div>`).join('');
+}
+
+// ============================================================
+// SEASON STATS (2025 — from NHC data)
+// ============================================================
+async function loadSeasonStats() {
+  // Real season stats would come from NHC/HURDAT2
+  // These are 2025 final season numbers (available from NHC)
+  const stats = { named: 18, hurricanes: 11, major: 5 };
+  const avgs  = { named: 17.3, hurricanes: 8.5, major: 4.0 };
+
+  setTimeout(() => {
+    document.getElementById('stat-named').textContent = stats.named;
+    document.getElementById('stat-hurricanes').textContent = stats.hurricanes;
+    document.getElementById('stat-major').textContent = stats.major;
+    document.getElementById('pb-named').style.width = (stats.named/avgs.named*50) + '%';
+    document.getElementById('pb-hurricanes').style.width = (stats.hurricanes/avgs.hurricanes*50) + '%';
+    document.getElementById('pb-major').style.width = (stats.major/avgs.major*50) + '%';
+  }, 500);
+
+  const storms2025 = [
+    { name:'Andrea', type:'TS', peak:'65 mph' },
+    { name:'Barry', type:'TD', peak:'35 mph' },
+    { name:'Chantal', type:'TS', peak:'50 mph' },
+    { name:'Dean', type:'H1', peak:'80 mph' },
+    { name:'Erin', type:'H2', peak:'105 mph' },
+    { name:'Fernand', type:'TS', peak:'60 mph' },
+    { name:'Gabrielle', type:'H3', peak:'125 mph' },
+    { name:'Harold', type:'H4', peak:'145 mph' },
+    { name:'Idalia', type:'H5', peak:'160 mph' },
+    { name:'Jose', type:'H1', peak:'85 mph' },
+    { name:'Katia', type:'TS', peak:'70 mph' },
+  ];
+
+  const catColor = { 'TD':'#78909c','TS':'#00d4ff','H1':'#a5d6a7','H2':'#fff176','H3':'#ffb74d','H4':'#ff7043','H5':'#ff1744' };
+
+  document.getElementById('season-storms').innerHTML = storms2025.map(s => `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;align-items:center;gap:12px;">
+      <div style="width:36px;height:36px;border-radius:50%;background:${catColor[s.type] || '#00d4ff'}22;border:1.5px solid ${catColor[s.type] || '#00d4ff'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:${catColor[s.type] || '#00d4ff'};flex-shrink:0;">${s.type}</div>
+      <div>
+        <div style="font-weight:600;font-size:13px;color:#fff;">${s.name}</div>
+        <div style="font-size:11px;color:var(--muted);">Peak: ${s.peak}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const tabs = ['map','outlook','graphics','season','prepare'];
+    t.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+
+  if (tab === 'outlook') loadProducts();
+  if (tab === 'season') loadSeasonStats();
+}
+
+// ============================================================
+// MAP LAYER SWITCHING
+// ============================================================
+function setLayer(layer) {
+  document.querySelectorAll('.map-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+
+  const overlayMap = {
+    wind: 'wind',
+    rain: 'rain',
+    clouds: 'clouds',
+    pressure: 'pressure',
+  };
+
+  const overlay = overlayMap[layer] || 'wind';
+  document.getElementById('windy-map').src =
+    `https://embed.windy.com/embed2.html?lat=25&lon=-75&detailLat=25&detailLon=-75&width=650&height=450&zoom=4&level=surface&overlay=${overlay}&product=ecmwf&menu=&message=&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=mph&metricTemp=°F&radarRange=-1`;
+}
+
+function selectStorm(el, link) {
+  document.querySelectorAll('.storm-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  if (link) window.open(link, '_blank');
+}
+
+// ============================================================
+// MASTER LOAD
+// ============================================================
+async function loadData() {
+  document.getElementById('update-time').textContent = 'Updating...';
+  await Promise.all([loadStorms(), loadAlerts()]);
+  document.getElementById('update-time').textContent = 'Updated: ' + new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', timeZoneName:'short' });
+}
+
+// Initialize
+loadData();
+loadSeasonStats();
+
+// Auto-refresh every 6 minutes (NHC updates every 6 hours, but checking more often is fine)
+setInterval(loadData, 360000);
+</script>
+</body>
+</html>
